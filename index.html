@@ -1,0 +1,1940 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>동부의원팀 • MR 일일활동 관리</title>
+
+    <!-- PWA 설정 -->
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+    <link rel="apple-touch-icon" href="/icons/icon-192.png">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="동부MR">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Noto+Sans+KR:wght@400;500;700&amp;display=swap');
+        
+        body {
+            font-family: 'Inter', 'Noto Sans KR', system-ui, sans-serif;
+        }
+        
+        .nav-active {
+            color: #0f172a;
+            font-weight: 600;
+        }
+        
+        .section {
+            display: none;
+        }
+        
+        .section.active {
+            display: block;
+        }
+        
+        .app-container {
+            max-width: 480px;
+            margin: 0 auto;
+            background: white;
+            min-height: 100dvh;
+            box-shadow: 0 0 0 1px #e2e8f0;
+        }
+
+        @media (min-width: 768px) {
+            .app-container {
+                max-width: 1000px;
+                box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+                border-radius: 24px;
+                margin-top: 20px;
+                margin-bottom: 20px;
+            }
+            
+            .medical-header {
+                border-radius: 24px 24px 0 0;
+            }
+
+            .dashboard-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+        
+        .medical-header {
+            background: linear-gradient(135deg, #0f172a 0%, #1e2937 100%);
+        }
+        
+        .product-chip {
+            background-color: #f1e7ff;
+            color: #6b21a8;
+            font-size: 0.75rem;
+            padding: 2px 10px;
+            border-radius: 9999px;
+        }
+        
+        .outcome-badge {
+            font-size: 0.75rem;
+            padding: 2px 10px;
+            border-radius: 9999px;
+            font-weight: 600;
+        }
+        
+        .rank-1 { background: linear-gradient(135deg, #fefce8, #fef08c); }
+        .rank-2 { background: linear-gradient(135deg, #f1f5f9, #e2e8f0); }
+        .rank-3 { background: linear-gradient(135deg, #fef3c7, #fde047); }
+    </style>
+</head>
+<body class="bg-slate-100">
+    <div class="app-container mx-auto shadow-xl min-h-screen flex flex-col" id="app">
+        
+        <!-- 로그인/회원가입 화면 -->
+        <div id="auth-screen" class="flex-1 flex items-center justify-center p-6">
+            <div class="w-full max-w-[380px]">
+                <div class="text-center mb-8">
+                    <div class="mx-auto w-20 h-20 rounded-3xl overflow-hidden shadow-md mb-4 bg-white">
+                        <img src="/icons/icon-192.png" alt="동부MR 로고" class="w-full h-full object-cover">
+                    </div>
+                    <h1 class="text-3xl font-bold tracking-tighter">동부의원팀</h1>
+                    <p class="text-slate-500 mt-1">MR 일일활동 관리 시스템</p>
+                </div>
+
+                <!-- 탭 -->
+                <div class="flex bg-slate-100 rounded-2xl p-1 mb-6">
+                    <button onclick="switchAuthMode('login')" id="login-tab"
+                            class="flex-1 py-2.5 rounded-[14px] text-sm font-semibold bg-white shadow">로그인</button>
+                    <button onclick="switchAuthMode('register')" id="register-tab"
+                            class="flex-1 py-2.5 rounded-[14px] text-sm font-semibold text-slate-500">회원가입</button>
+                </div>
+
+                <!-- 로그인 -->
+                <div id="login-form">
+                    <div class="mb-4">
+                        <label class="text-sm font-medium mb-1.5 block">이름</label>
+                        <input type="text" id="login-name" placeholder="등록한 이름을 입력하세요"
+                               class="w-full border border-slate-200 focus:border-teal-500 rounded-2xl px-4 py-3 text-base outline-none">
+                    </div>
+                    <button onclick="login()" 
+                            class="w-full py-3.5 bg-[#0F172A] hover:bg-black text-white font-semibold rounded-2xl">
+                        로그인
+                    </button>
+                    
+                    <div class="mt-6">
+                        <p class="text-xs text-slate-500 mb-2 px-1">등록된 사용자</p>
+                        <div id="user-list" class="grid grid-cols-2 gap-2 text-sm"></div>
+                    </div>
+                </div>
+
+                <!-- 회원가입 -->
+                <div id="register-form" class="hidden">
+                    <div class="mb-4">
+                        <label class="text-sm font-medium mb-1.5 block">이름</label>
+                        <input type="text" id="reg-name" placeholder="이름을 입력하세요"
+                               class="w-full border border-slate-200 focus:border-teal-500 rounded-2xl px-4 py-3 text-base outline-none">
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label class="text-sm font-medium mb-1.5 block">역할</label>
+                        <div class="flex gap-2">
+                            <button onclick="selectRole('mr')" id="role-mr"
+                                    class="flex-1 py-3 rounded-2xl border border-teal-500 bg-teal-50 text-teal-700 font-medium text-sm">코스 담당자 (MR)</button>
+                            <button onclick="selectRole('manager')" id="role-manager"
+                                    class="flex-1 py-3 rounded-2xl border border-slate-200 text-sm">팀장</button>
+                        </div>
+                    </div>
+                    
+                    <div id="course-select-wrapper" class="mb-5">
+                        <label class="text-sm font-medium mb-1.5 block">담당 코스</label>
+                        <select id="reg-course" class="w-full border border-slate-200 focus:border-teal-500 rounded-2xl px-4 py-3 text-base outline-none">
+                            <option value="코스1 (강동구)">코스1 (강동구)</option>
+                            <option value="코스2 (강남구, 양평)">코스2 (강남구, 양평)</option>
+                            <option value="코스3 (서초구)">코스3 (서초구)</option>
+                            <option value="코스4 (송파구, 경기도 광주)">코스4 (송파구, 경기도 광주)</option>
+                            <option value="코스5 (구리, 남양주)">코스5 (구리, 남양주)</option>
+                            <option value="코스6 (하남, 강남, 서초)">코스6 (하남, 강남, 서초)</option>
+                        </select>
+                    </div>
+                    
+                    <button onclick="register()" 
+                            class="w-full py-3.5 bg-[#0F172A] hover:bg-black text-white font-semibold rounded-2xl">
+                        회원가입하기
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 메인 앱 화면 -->
+        <div id="main-app" class="hidden flex-1 flex flex-col">
+            
+            <!-- Header -->
+            <header class="medical-header text-white px-5 pt-5 pb-4 sticky top-0 z-50">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="flex items-center gap-x-3">
+                            <div class="w-10 h-10 rounded-2xl overflow-hidden bg-white shadow-sm flex-shrink-0">
+                                <img src="/icons/icon-192.png" alt="동부MR 로고" class="w-full h-full object-cover">
+                            </div>
+                            <div>
+                                <h1 class="text-2xl font-bold tracking-tighter">동부의원팀</h1>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-x-3">
+    <div class="text-right">
+        <div class="font-semibold text-sm" id="header-user-name"></div>
+        <div class="text-teal-300 text-xs" id="header-user-role"></div>
+    </div>
+
+    <!-- PWA 설치 버튼 -->
+    <button id="install-btn" 
+            onclick="installPWA()"
+            class="hidden text-xs px-3 py-1 bg-teal-500 hover:bg-teal-600 text-white rounded-full transition-colors">
+        <i class="fa-solid fa-download mr-1"></i> 앱 설치
+    </button>
+
+    <button onclick="logout()" class="text-xs px-3 py-1 bg-white/10 rounded-full">로그아웃</button>
+</div>
+                </div>
+            </header>
+
+            <!-- Main Content -->
+            <main class="flex-1 px-4 pt-4 pb-24 overflow-auto" id="main-content">
+                <!-- 동적으로 렌더링 -->
+            </main>
+
+            <!-- Bottom Navigation -->
+            <nav class="fixed bottom-0 left-0 right-0 max-w-[480px] mx-auto bg-white border-t z-50">
+                <div class="grid grid-cols-6 h-16">
+                    <button onclick="switchTab('home')" class="tab-btn flex flex-col items-center justify-center text-slate-400" id="tab-home">
+                        <i class="fa-solid fa-home text-xl mb-0.5"></i>
+                        <span class="text-[10px] font-medium">홈</span>
+                    </button>
+                    <button onclick="switchTab('activity')" class="tab-btn flex flex-col items-center justify-center text-slate-400" id="tab-activity">
+                        <i class="fa-solid fa-plus-circle text-xl mb-0.5"></i>
+                        <span class="text-[10px] font-medium">신규활동</span>
+                    </button>
+                    <button onclick="switchTab('ranking')" class="tab-btn flex flex-col items-center justify-center text-slate-400" id="tab-ranking">
+                        <i class="fa-solid fa-trophy text-xl mb-0.5"></i>
+                        <span class="text-[10px] font-medium">랭킹</span>
+                    </button>
+                    <button onclick="switchTab('teamfeed')" class="tab-btn flex flex-col items-center justify-center text-slate-400" id="tab-teamfeed">
+                        <i class="fa-solid fa-users text-xl mb-0.5"></i>
+                        <span class="text-[10px] font-medium">팀 활동</span>
+                    </button>
+                    <button onclick="switchTab('report')" class="tab-btn flex flex-col items-center justify-center text-slate-400" id="tab-report">
+                        <i class="fa-solid fa-chart-bar text-xl mb-0.5"></i>
+                        <span class="text-[10px] font-medium">리포트</span>
+                    </button>
+                    <button onclick="switchTab('notice')" class="tab-btn flex flex-col items-center justify-center text-slate-400" id="tab-notice">
+                        <i class="fa-solid fa-bell text-xl mb-0.5"></i>
+                        <span class="text-[10px] font-medium">공지사항</span>
+                    </button>
+                </div>
+            </nav>
+        </div>
+    </div>
+
+    <!-- Firebase Firestore SDK: Netlify는 그대로 사용하고, 데이터만 Firestore에 저장합니다. -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+
+    <script>
+        // Tailwind 설정
+        function initTailwind() {
+            document.documentElement.style.setProperty('--accent', '#14b8a6');
+        }
+
+        // ===== 데이터 =====
+        let currentUser = null;
+        let activities = [];
+        let notices = [];
+        let users = [];
+        let currentTab = 'home';
+
+        // ===== Firebase Firestore 설정 =====
+        // Firebase 콘솔 > 프로젝트 설정 > 일반 > 내 앱 > Firebase SDK snippet > 구성(config)을 아래 값으로 교체하세요.
+        // apiKey는 비밀번호가 아니지만, Firestore 보안 규칙은 반드시 설정해야 합니다.
+        const firebaseConfig = {
+            apiKey: "AIzaSyDLrfBj9zObzo_UisOHGKuBLsQX6Dqr1kY",
+            authDomain: "dongbu-mr-pwa.firebaseapp.com",
+            projectId: "dongbu-mr-pwa",
+            storageBucket: "dongbu-mr-pwa.firebasestorage.app",
+            messagingSenderId: "70068219821",
+            appId: "1:70068219821:web:601eca7cab893d5d7a3b24"
+        };
+
+        let db = null;
+        let auth = null;
+        let useFirestore = false;
+        let firebaseAuthReady = false;
+        let firstActivitiesSnapshot = true;
+        let firstNoticesSnapshot = true;
+
+        function isFirebaseConfigReady() {
+            return firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith('YOUR_') &&
+                   firebaseConfig.projectId && !firebaseConfig.projectId.startsWith('YOUR_');
+        }
+
+        async function initFirebase() {
+            if (!isFirebaseConfigReady()) {
+                console.warn('Firebase 설정값이 아직 입력되지 않았습니다. 현재는 localStorage 모드로 동작합니다.');
+                return false;
+            }
+
+            try {
+                if (!firebase.apps.length) {
+                    firebase.initializeApp(firebaseConfig);
+                }
+
+                db = firebase.firestore();
+                auth = firebase.auth();
+
+                try {
+                    db.settings({ ignoreUndefinedProperties: true });
+                } catch (settingsError) {
+                    console.warn('Firestore settings 적용 생략:', settingsError);
+                }
+
+                // Firestore 보안 규칙을 request.auth != null 기반으로 바꾸기 위한 익명 인증입니다.
+                // Firebase 콘솔 > Authentication > Sign-in method > 익명 로그인을 먼저 사용 설정해야 합니다.
+                if (!auth.currentUser) {
+                    await auth.signInAnonymously();
+                }
+
+                firebaseAuthReady = !!auth.currentUser;
+                useFirestore = true;
+                console.log('Firebase 익명 인증 완료:', auth.currentUser ? auth.currentUser.uid : 'unknown');
+                return true;
+            } catch (error) {
+                console.error('Firebase 초기화 또는 인증 실패:', error);
+                firebaseAuthReady = false;
+                useFirestore = false;
+                alert(
+                    'Firebase 인증 초기화 중 오류가 발생했습니다.\n\n' +
+                    'Firebase 콘솔에서 Authentication > Sign-in method > 익명 로그인을 사용 설정했는지 확인해주세요.' +
+                    getErrorMessage(error)
+                );
+                return false;
+            }
+        }
+
+        function normalizeDoc(doc) {
+            return { id: doc.id, ...doc.data() };
+        }
+
+        function cleanForFirestore(value) {
+            if (Array.isArray(value)) {
+                return value.map(cleanForFirestore);
+            }
+            if (value && typeof value === 'object') {
+                const cleaned = {};
+                Object.entries(value).forEach(([key, val]) => {
+                    if (val !== undefined) {
+                        cleaned[key] = cleanForFirestore(val);
+                    }
+                });
+                return cleaned;
+            }
+            return value;
+        }
+
+        function getErrorMessage(error) {
+            if (!error) return '';
+            const parts = [];
+            if (error.code) parts.push(`오류 코드: ${error.code}`);
+            if (error.message) parts.push(error.message);
+            return parts.length ? '\n\n' + parts.join('\n') : '';
+        }
+
+
+        function getTodayString() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        function formatKoreanDate(value) {
+            if (!value) return '';
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return String(value);
+            return date.toLocaleDateString('ko-KR');
+        }
+
+        function safeText(value) {
+            return String(value ?? '')
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#39;');
+        }
+
+        function safeList(values) {
+            return Array.isArray(values) ? values.map(safeText).join(', ') : '';
+        }
+
+        function handleFirestoreError(action, error) {
+            console.error(`${action} 실패:`, error);
+            alert(`${action} 중 오류가 발생했습니다. Firestore 규칙과 Firebase 설정을 확인해주세요.${getErrorMessage(error)}`);
+        }
+
+        function rerenderAfterRemoteUpdate() {
+            const mainApp = document.getElementById('main-app');
+            if (mainApp && !mainApp.classList.contains('hidden')) {
+                renderCurrentTab();
+            }
+        }
+
+        function startRealtimeSync() {
+            if (!useFirestore || !db) return Promise.resolve();
+
+            const waitUsers = new Promise(resolve => {
+                db.collection('users').orderBy('name').onSnapshot(snapshot => {
+                    users = snapshot.docs.map(normalizeDoc);
+                    renderUserList();
+                    resolve();
+                }, error => {
+                    console.error('users 실시간 동기화 실패:', error);
+                    resolve();
+                });
+            });
+
+            const waitActivities = new Promise(resolve => {
+                db.collection('activities').orderBy('createdAt', 'desc').onSnapshot(snapshot => {
+                    const changes = snapshot.docChanges().map(change => ({ type: change.type, data: normalizeDoc(change.doc) }));
+                    activities = snapshot.docs.map(normalizeDoc);
+
+                    if (!firstActivitiesSnapshot) {
+                        changes.forEach(change => {
+                            const act = change.data;
+                            if (change.type === 'added' && currentUser && act.registeredBy !== currentUser.name) {
+                                showLocalNotification(
+                                    '새 신규활동 등록',
+                                    `${act.registeredBy || '팀원'}님이 ${act.course || ''}에 신규활동을 등록했습니다.`,
+                                    'activity'
+                                );
+                            }
+                        });
+                        rerenderAfterRemoteUpdate();
+                    }
+                    firstActivitiesSnapshot = false;
+                    resolve();
+                }, error => {
+                    console.error('activities 실시간 동기화 실패:', error);
+                    resolve();
+                });
+            });
+
+            const waitNotices = new Promise(resolve => {
+                db.collection('notices').orderBy('createdAt', 'desc').onSnapshot(snapshot => {
+                    const changes = snapshot.docChanges().map(change => ({ type: change.type, data: normalizeDoc(change.doc) }));
+                    notices = snapshot.docs.map(normalizeDoc);
+
+                    if (!firstNoticesSnapshot) {
+                        changes.forEach(change => {
+                            const notice = change.data;
+                            if (change.type === 'added' && currentUser && notice.createdBy !== currentUser.name) {
+                                showLocalNotification(
+                                    notice.important ? '중요 공지사항 등록' : '새 공지사항 등록',
+                                    `${notice.createdBy || '팀원'}님이 새 공지사항을 등록했습니다.`,
+                                    'notice'
+                                );
+                            }
+                        });
+                        rerenderAfterRemoteUpdate();
+                    }
+                    firstNoticesSnapshot = false;
+                    resolve();
+                }, error => {
+                    console.error('notices 실시간 동기화 실패:', error);
+                    resolve();
+                });
+            });
+
+            return Promise.all([waitUsers, waitActivities, waitNotices]);
+        }
+
+        // 로컬스토리지는 로그인 유지용으로만 사용합니다. Firestore 설정 전에는 예전 방식으로도 동작합니다.
+        function loadData() {
+            const savedCurrentUser = localStorage.getItem('dongbu_current_user');
+            if (savedCurrentUser) currentUser = JSON.parse(savedCurrentUser);
+
+            if (!isFirebaseConfigReady()) {
+                const savedUsers = localStorage.getItem('dongbu_users');
+                const savedActivities = localStorage.getItem('dongbu_activities');
+                const savedNotices = localStorage.getItem('dongbu_notices');
+                if (savedUsers) users = JSON.parse(savedUsers);
+                if (savedActivities) activities = JSON.parse(savedActivities);
+                if (savedNotices) notices = JSON.parse(savedNotices);
+            }
+        }
+
+        function saveData() {
+            if (currentUser) {
+                localStorage.setItem('dongbu_current_user', JSON.stringify(currentUser));
+            }
+
+            if (!useFirestore) {
+                localStorage.setItem('dongbu_users', JSON.stringify(users));
+                localStorage.setItem('dongbu_activities', JSON.stringify(activities));
+                localStorage.setItem('dongbu_notices', JSON.stringify(notices));
+            }
+        }
+
+        // ===== 인증 관련 =====
+        function switchAuthMode(mode) {
+            const loginForm = document.getElementById('login-form');
+            const registerForm = document.getElementById('register-form');
+            const loginTab = document.getElementById('login-tab');
+            const registerTab = document.getElementById('register-tab');
+
+            if (mode === 'login') {
+                loginForm.classList.remove('hidden');
+                registerForm.classList.add('hidden');
+                loginTab.classList.add('bg-white', 'shadow');
+                registerTab.classList.remove('bg-white', 'shadow');
+            } else {
+                loginForm.classList.add('hidden');
+                registerForm.classList.remove('hidden');
+                registerTab.classList.add('bg-white', 'shadow');
+                loginTab.classList.remove('bg-white', 'shadow');
+            }
+        }
+
+        function selectRole(role) {
+            const mrBtn = document.getElementById('role-mr');
+            const managerBtn = document.getElementById('role-manager');
+            const courseWrapper = document.getElementById('course-select-wrapper');
+
+            if (role === 'mr') {
+                mrBtn.classList.add('border-teal-500', 'bg-teal-50', 'text-teal-700');
+                managerBtn.classList.remove('border-teal-500', 'bg-teal-50', 'text-teal-700');
+                courseWrapper.style.display = 'block';
+            } else {
+                managerBtn.classList.add('border-teal-500', 'bg-teal-50', 'text-teal-700');
+                mrBtn.classList.remove('border-teal-500', 'bg-teal-50', 'text-teal-700');
+                courseWrapper.style.display = 'none';
+            }
+        }
+
+        async function register() {
+            const name = document.getElementById('reg-name').value.trim();
+            const role = document.getElementById('role-mr').classList.contains('bg-teal-50') ? 'mr' : 'manager';
+            const course = role === 'mr' ? document.getElementById('reg-course').value : null;
+
+            if (!name) {
+                alert('이름을 입력해주세요.');
+                return;
+            }
+
+            if (users.find(u => u.name === name)) {
+                alert('이미 등록된 이름입니다.');
+                return;
+            }
+
+            const newUser = {
+                id: 'u' + Date.now(),
+                name: name,
+                role: role,
+                course: course,
+                createdAt: new Date().toISOString()
+            };
+
+            try {
+                if (useFirestore) {
+                    await db.collection('users').doc(newUser.id).set(cleanForFirestore(newUser));
+                } else {
+                    users.push(newUser);
+                }
+
+                // 자동 로그인
+                currentUser = newUser;
+                saveData();
+                showMainApp();
+            } catch (error) {
+                handleFirestoreError('회원가입 저장', error);
+            }
+        }
+
+        function login() {
+            const name = document.getElementById('login-name').value.trim();
+            const user = users.find(u => u.name === name);
+
+            if (!user) {
+                alert('등록되지 않은 사용자입니다. 회원가입을 먼저 해주세요.');
+                return;
+            }
+
+            currentUser = user;
+            saveData();
+            showMainApp();
+        }
+
+        function logout() {
+            currentUser = null;
+            localStorage.removeItem('dongbu_current_user');
+            document.getElementById('main-app').classList.add('hidden');
+            document.getElementById('auth-screen').classList.remove('hidden');
+            document.getElementById('login-name').value = '';
+        }
+
+        function showMainApp() {
+            document.getElementById('auth-screen').classList.add('hidden');
+            document.getElementById('main-app').classList.remove('hidden');
+
+            // 헤더 정보 업데이트
+            document.getElementById('header-user-name').textContent = currentUser.name;
+            document.getElementById('header-user-role').textContent = 
+                currentUser.role === 'manager' ? '팀장' : currentUser.course;
+
+            showInstallButtonAfterLogin();
+            requestPermissionOnLogin();
+
+            // 초기 탭 렌더링
+            switchTab('home');
+            renderUserList();
+        }
+
+        function renderUserList() {
+            const container = document.getElementById('user-list');
+            container.innerHTML = '';
+            
+            users.forEach(user => {
+                const div = document.createElement('div');
+                div.className = 'p-2 border rounded-xl text-xs cursor-pointer hover:bg-slate-50';
+                div.innerHTML = `
+                    <div class="font-medium">${safeText(user.name)}</div>
+                    <div class="text-[10px] text-slate-500">${user.role === 'manager' ? '팀장' : safeText(user.course)}</div>
+                `;
+                div.onclick = () => {
+                    currentUser = user;
+                    saveData();
+                    showMainApp();
+                };
+                container.appendChild(div);
+            });
+        }
+
+        // ===== 탭 전환 =====
+        function switchTab(tab) {
+            currentTab = tab;
+            
+            // 탭 스타일
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('nav-active', 'text-teal-600');
+                btn.classList.add('text-slate-400');
+            });
+            const activeBtn = document.getElementById('tab-' + tab);
+            if (activeBtn) {
+                activeBtn.classList.add('nav-active', 'text-teal-600');
+                activeBtn.classList.remove('text-slate-400');
+            }
+
+            renderCurrentTab();
+        }
+
+        function renderCurrentTab() {
+            const container = document.getElementById('main-content');
+            container.innerHTML = '';
+
+            if (currentTab === 'home') {
+                renderHome(container);
+            } else if (currentTab === 'activity') {
+                renderActivityForm(container);
+            } else if (currentTab === 'ranking') {
+                renderRanking(container);
+            } else if (currentTab === 'teamfeed') {
+                renderTeamFeed(container);
+            } else if (currentTab === 'report') {
+                renderReport(container);
+            } else if (currentTab === 'notice') {
+                renderNotice(container);
+            }
+        }
+
+        // ===== 홈 화면 =====
+        function renderHome(container) {
+            if (currentUser.role === 'manager') {
+                renderManagerHome(container);
+            } else {
+                renderMRHome(container);
+            }
+        }
+
+        function renderManagerHome(container) {
+            const now = new Date();
+            const currentMonth = now.getMonth();
+            const currentYear = now.getFullYear();
+            const todayStr = getTodayString();
+
+            const allCourses = ['코스1 (강동구)', '코스2 (강남구, 양평)', '코스3 (서초구)', 
+                               '코스4 (송파구, 경기도 광주)', '코스5 (구리, 남양주)', '코스6 (하남, 강남, 서초)'];
+
+            // 이번 달 전체 활동
+            const thisMonthActivities = activities.filter(a => 
+                new Date(a.date).getMonth() === currentMonth && 
+                new Date(a.date).getFullYear() === currentYear
+            );
+
+            // 코스별 활동 수
+            const courseStats = {};
+            allCourses.forEach(c => {
+                courseStats[c] = thisMonthActivities.filter(a => a.course === c).length;
+            });
+
+            const sortedCourses = Object.entries(courseStats).sort((a, b) => b[1] - a[1]);
+
+            // Top 제품
+            const productCount = {};
+            thisMonthActivities.forEach(a => {
+                a.products.forEach(p => {
+                    productCount[p] = (productCount[p] || 0) + 1;
+                });
+            });
+            const topProducts = Object.entries(productCount).sort((a,b) => b[1]-a[1]).slice(0,5);
+
+            // 최근 활동
+            const recentActivities = [...thisMonthActivities]
+                .sort((a,b) => b.createdAt.localeCompare(a.createdAt))
+                .slice(0, 5);
+
+            let html = `
+                <div class="space-y-6">
+                    <!-- 상단 KPI -->
+                    <div>
+                        <h2 class="text-2xl font-bold tracking-tighter">팀 대시보드</h2>
+                        <p class="text-sm text-slate-500">${now.toLocaleDateString('ko-KR', {month:'long'})} 기준</p>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="bg-white border rounded-3xl p-5">
+                            <div class="text-sm text-slate-500">이번 달 총 활동</div>
+                            <div class="text-5xl font-bold mt-1 text-[#0F172A]">${thisMonthActivities.length}</div>
+                        </div>
+                        <div class="bg-white border rounded-3xl p-5">
+                            <div class="text-sm text-slate-500">활성 코스</div>
+                            <div class="text-5xl font-bold mt-1 text-teal-600">
+                                ${Object.values(courseStats).filter(v => v > 0).length}<span class="text-2xl">/6</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 코스별 성과 -->
+                    <div>
+                        <h3 class="font-semibold mb-3 px-1">코스별 성과 (이번 달)</h3>
+                        <div class="space-y-2">
+                            ${sortedCourses.map(([course, count], index) => {
+                                const pct = thisMonthActivities.length > 0 ? Math.round((count / thisMonthActivities.length) * 100) : 0;
+                                return `
+                                    <div class="bg-white border rounded-3xl px-5 py-4">
+                                        <div class="flex justify-between items-center">
+                                            <div class="flex items-center gap-3">
+                                                <span class="font-mono text-sm w-5 text-center text-slate-400">${index + 1}</span>
+                                                <span class="font-medium">${safeText(course)}</span>
+                                            </div>
+                                            <div class="text-right">
+                                                <span class="text-3xl font-bold">${count}</span>
+                                                <span class="text-xs text-slate-400">건</span>
+                                            </div>
+                                        </div>
+                                        <div class="mt-2">
+                                            <div class="h-1.5 bg-slate-100 rounded-full">
+                                                <div class="h-1.5 bg-teal-500 rounded-full" style="width: ${pct}%"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+
+                    <!-- Top 제품 + 최근 활동 -->
+                    <div class="grid grid-cols-1 gap-4">
+                        <!-- Top 제품 -->
+                        <div class="bg-white border rounded-3xl p-5">
+                            <h3 class="font-semibold mb-3">이번 달 Top 신규 품목</h3>
+                            <div class="space-y-2 text-sm">
+                                ${topProducts.length > 0 ? topProducts.map(([product, count]) => `
+                                    <div class="flex justify-between">
+                                        <span>${safeText(product)}</span>
+                                        <span class="font-semibold text-teal-600">${count}회</span>
+                                    </div>
+                                `).join('') : `<div class="text-slate-400">데이터 없음</div>`}
+                            </div>
+                        </div>
+
+                        <!-- 최근 활동 -->
+                        <div class="bg-white border rounded-3xl p-5">
+                            <h3 class="font-semibold mb-3">최근 등록 활동</h3>
+                            <div class="space-y-2 text-sm">
+                                ${recentActivities.length > 0 ? recentActivities.map(act => `
+                                    <div class="flex justify-between border-b pb-2 last:border-0 last:pb-0">
+                                        <div>
+                                            <span class="font-medium">${safeText(act.course)}</span>
+                                            <span class="text-xs text-slate-500 ml-2">${safeText(act.registeredBy)}</span>
+                                        </div>
+                                        <span class="text-xs text-slate-400">${act.date}</span>
+                                    </div>
+                                `).join('') : `<div class="text-slate-400">최근 활동 없음</div>`}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            container.innerHTML = html;
+        }
+
+        function renderMRHome(container) {
+            const myCourse = currentUser.course;
+            const todayStr = getTodayString();
+
+            // 오늘 등록한 활동만 (등록 순서대로)
+            const todayMyActs = activities
+                .filter(a => a.registeredBy === currentUser.name && a.date === todayStr)
+                .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+
+            // 월간 달력 생성 (간단 버전 + 공휴일)
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = now.getMonth();
+            const today = now.getDate();
+
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+            // 한국 공휴일 (2026년 주요)
+            const holidays = {
+                '2026-01-01': '신정',
+                '2026-03-01': '삼일절',
+                '2026-05-05': '어린이날',
+                '2026-06-06': '현충일',
+                '2026-08-15': '광복절',
+                '2026-10-03': '개천절',
+                '2026-10-09': '한글날',
+                '2026-12-25': '크리스마스'
+            };
+
+            let calendarHTML = `
+                <div class="bg-white border rounded-3xl p-4 mb-4">
+                    <div class="flex justify-between items-center mb-3 px-1">
+                        <div class="font-semibold">${year}년 ${month + 1}월</div>
+                        <div class="text-xs text-teal-600">오늘 하이라이트</div>
+                    </div>
+                    <div class="grid grid-cols-7 gap-1 text-center text-xs mb-2">
+                        <div class="text-red-400">일</div>
+                        <div>월</div>
+                        <div>화</div>
+                        <div>수</div>
+                        <div>목</div>
+                        <div>금</div>
+                        <div class="text-blue-400">토</div>
+                    </div>
+                    <div class="grid grid-cols-7 gap-1 text-sm">
+            `;
+
+            for (let i = 0; i < firstDay; i++) {
+                calendarHTML += `<div></div>`;
+            }
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const isToday = day === today;
+                const isHoliday = holidays[dateStr];
+
+                let classes = "py-1.5 rounded-xl text-center ";
+                if (isToday) classes += "bg-teal-600 text-white font-bold ";
+                else if (isHoliday) classes += "bg-amber-100 text-amber-700 font-medium ";
+                else classes += "hover:bg-slate-100 ";
+
+                calendarHTML += `<div class="${classes}">${day}</div>`;
+            }
+
+            calendarHTML += `</div></div>`;
+
+            let html = `
+                <div class="space-y-5">
+                    <!-- 1. 담당자 정보 -->
+                    <div class="px-1 pt-1">
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 bg-teal-100 rounded-2xl flex items-center justify-center">
+                                <i class="fa-solid fa-user text-teal-600 text-2xl"></i>
+                            </div>
+                            <div>
+                                <div class="font-bold text-xl">${safeText(currentUser.name)}</div>
+                                <div class="text-teal-600 text-sm font-medium">${safeText(myCourse)} 담당자</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 2. 월간 달력 (공휴일 반영) -->
+                    <div>
+                        <div class="px-1 mb-2 flex justify-between items-center">
+                            <div class="font-semibold">월간 달력</div>
+                            <div class="text-xs text-slate-400">${year}년 ${month + 1}월</div>
+                        </div>
+                        ${calendarHTML}
+                    </div>
+
+                    <!-- 3. 오늘 내 활동 -->
+                    <div>
+                        <div class="flex items-center justify-between px-1 mb-3">
+                            <div class="font-semibold">오늘 내 활동</div>
+                            <span class="text-xs px-2.5 py-1 bg-slate-100 rounded-full text-slate-500">${todayMyActs.length}건</span>
+                        </div>
+
+                        ${todayMyActs.length > 0 ? 
+                            todayMyActs.map(act => `
+                                <div class="bg-white border rounded-3xl p-4 mb-2 relative">
+                                    <button onclick="deleteActivity('${act.id}', event)" 
+                                            class="absolute top-3 right-3 text-slate-300 hover:text-red-500 p-1">
+                                        <i class="fa-solid fa-trash text-sm"></i>
+                                    </button>
+
+                                    <div class="flex justify-between text-sm pr-6">
+                                        <div class="font-medium">${act.date}</div>
+                                        <div class="text-teal-600">${safeText(act.course)}</div>
+                                    </div>
+                                    ${act.client ? `
+                                    <div class="mt-1 text-sm pr-6">
+                                        <span class="text-xs text-slate-500">거래처: </span>
+                                        <span class="font-medium">${act.client}</span>
+                                    </div>
+                                ` : ''}
+                                    <div class="mt-1 pr-6">
+                                        <span class="text-xs text-slate-500">신규 품목: </span>
+                                        <span class="text-sm">${safeList(act.products)}</span>
+                                    </div>
+                                </div>
+                            `).join('') : 
+                            `<div class="bg-white border border-dashed rounded-3xl p-6 text-center">
+                                <div class="text-slate-400 text-sm">오늘 등록한 활동이 없습니다.</div>
+                            </div>`
+                        }
+                    </div>
+                </div>
+            `;
+
+            container.innerHTML = html;
+        }
+
+        // ===== 신규활동 폼 =====
+        function renderActivityForm(container) {
+            const isManager = currentUser.role === 'manager';
+
+            if (isManager) {
+                renderManagerActivityOverview(container);
+                return;
+            }
+
+            const myCourse = currentUser.course;
+
+            let html = `
+                <div class="space-y-6">
+                    <h2 class="text-xl font-bold px-1">신규활동 등록</h2>
+                    
+                    <div>
+                        <label class="text-sm font-semibold mb-2 block">코스</label>
+            `;
+
+            if (isManager) {
+                html += `
+                    <select id="activity-course" class="w-full border border-slate-200 rounded-2xl px-4 py-3 text-base">
+                        <option value="코스1 (강동구)">코스1 (강동구)</option>
+                        <option value="코스2 (강남구, 양평)">코스2 (강남구, 양평)</option>
+                        <option value="코스3 (서초구)">코스3 (서초구)</option>
+                        <option value="코스4 (송파구, 경기도 광주)">코스4 (송파구, 경기도 광주)</option>
+                        <option value="코스5 (구리, 남양주)">코스5 (구리, 남양주)</option>
+                        <option value="코스6 (하남, 강남, 서초)">코스6 (하남, 강남, 서초)</option>
+                    </select>
+                `;
+            } else {
+                html += `
+                    <div class="px-4 py-3 bg-slate-100 border rounded-2xl font-medium">
+                        ${safeText(myCourse)} <span class="text-xs text-teal-600 ml-2">(본인 코스)</span>
+                    </div>
+                `;
+            }
+
+            html += `</div>`;
+
+            html += `
+                <div>
+                    <label class="text-sm font-semibold mb-3 block">홍보한 품목 (복수 선택)</label>
+                    <div class="grid grid-cols-2 gap-3" id="product-checkboxes">
+            `;
+
+            const products = ['에크락겔', '란스톤LFDT', '덱실란트', '벨루티아이', 'DM', '기타'];
+            products.forEach(p => {
+                html += `
+                    <label class="flex items-center gap-3 p-4 border rounded-2xl cursor-pointer">
+                        <input type="checkbox" value="${p}" class="product-check w-5 h-5 accent-teal-600">
+                        <span class="font-medium">${p}</span>
+                    </label>
+                `;
+            });
+
+            html += `</div></div>`;
+
+            html += `
+                <div>
+                    <label class="text-sm font-semibold mb-2 block">메모 (선택)</label>
+                    <textarea id="activity-memo" class="w-full border border-slate-200 rounded-3xl px-4 py-3 min-h-[90px]" placeholder="특이사항"></textarea>
+                </div>
+
+                <button onclick="saveActivity()" 
+                        class="w-full py-4 bg-[#0F172A] text-white font-semibold rounded-2xl">
+                    신규활동 등록하기
+                </button>
+            </div>
+            `;
+
+            container.innerHTML = html;
+        }
+
+        function saveActivity() {
+            const isManager = currentUser.role === 'manager';
+            const course = isManager 
+                ? document.getElementById('activity-course').value 
+                : currentUser.course;
+
+            const checked = Array.from(document.querySelectorAll('.product-check:checked')).map(el => el.value);
+
+            if (checked.length === 0) {
+                alert('최소 1개 이상의 품목을 선택해주세요.');
+                return;
+            }
+
+            showClientInputModal(checked, course);
+        }
+
+        function showClientInputModal(products, course) {
+            const hasCustomItem = products.includes('DM') || products.includes('기타');
+
+            const modalHTML = `
+                <div id="client-modal" class="fixed inset-0 bg-black/60 z-[100] flex items-end md:items-center justify-center">
+                    <div onclick="event.stopImmediatePropagation()" class="bg-white w-full max-w-[480px] rounded-t-3xl md:rounded-3xl md:m-4 p-5">
+                        <h3 class="font-bold text-xl mb-1">거래처 및 품목 입력</h3>
+                        <p class="text-sm text-slate-500 mb-4">거래처명과 신규 품목 정보를 입력해주세요.</p>
+                        
+                        <div class="space-y-4">
+                            <div>
+                                <label class="text-sm font-medium mb-1.5 block">거래처명 (병원/의원/의사명)</label>
+                                <input type="text" id="client-name" 
+                                       class="w-full border border-slate-200 focus:border-teal-500 rounded-2xl px-4 py-3 text-base outline-none"
+                                       placeholder="예: 서울아산병원 김민준 교수">
+                            </div>
+
+                            ${hasCustomItem ? `
+                                <div>
+                                    <label class="text-sm font-medium mb-1.5 block text-orange-600">품목명 직접 입력 (DM / 기타)</label>
+                                    <input type="text" id="custom-product-name" 
+                                           class="w-full border border-orange-300 focus:border-orange-500 rounded-2xl px-4 py-3 text-base outline-none"
+                                           placeholder="실제 품목명을 입력하세요">
+                                </div>
+                            ` : ''}
+                        </div>
+
+                        <div class="flex gap-3 mt-5">
+                            <button onclick="closeClientModal()" 
+                                    class="flex-1 py-3.5 border border-slate-200 rounded-2xl font-semibold text-slate-600">
+                                취소
+                            </button>
+                            <button id="client-save-btn" onclick="confirmClientInput('${products.join(',')}', '${course}')" 
+                                    class="flex-1 py-3.5 bg-[#0F172A] text-white font-semibold rounded-2xl">
+                                저장하기
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            const existing = document.getElementById('client-modal');
+            if (existing) existing.remove();
+
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+            
+            setTimeout(() => {
+                const input = document.getElementById('client-name');
+                if (input) input.focus();
+            }, 100);
+        }
+
+        function closeClientModal() {
+            const modal = document.getElementById('client-modal');
+            if (modal) modal.remove();
+        }
+
+        async function confirmClientInput(productsStr, course) {
+            const saveBtn = document.getElementById('client-save-btn');
+            if (saveBtn) {
+                saveBtn.disabled = true;
+                saveBtn.textContent = '저장 중...';
+            }
+            const clientName = document.getElementById('client-name').value.trim();
+            const products = productsStr.split(',');
+
+            let finalProducts = [...products];
+            const customProductInput = document.getElementById('custom-product-name');
+            
+            if (customProductInput && customProductInput.value.trim()) {
+                finalProducts = finalProducts.map(p => 
+                    (p === 'DM' || p === '기타') ? customProductInput.value.trim() : p
+                );
+            }
+
+            const newActivity = {
+                id: 'a' + Date.now(),
+                date: getTodayString(),
+                course: course,
+                products: finalProducts,
+                client: clientName,
+                memo: document.getElementById('activity-memo')?.value.trim() || '',
+                registeredBy: currentUser.name,
+                createdAt: new Date().toISOString()
+            };
+
+            try {
+                if (useFirestore) {
+                    await db.collection('activities').doc(newActivity.id).set(cleanForFirestore(newActivity));
+                } else {
+                    activities.unshift(newActivity);
+                    saveData();
+                }
+
+                closeClientModal();
+                alert('신규활동이 등록되었습니다!');
+                switchTab('home');
+
+                const notifTitle = "신규활동 등록 완료";
+                const notifBody = `${safeText(currentUser.name)}님이 ${safeText(course)}에 신규활동을 등록했습니다.`;
+                showLocalNotification(notifTitle, notifBody, 'activity');
+            } catch (error) {
+                if (saveBtn) {
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = '저장하기';
+                }
+                handleFirestoreError('신규활동 저장', error);
+            }
+        }
+
+        async function deleteActivity(activityId, event) {
+            event.stopImmediatePropagation();
+
+            if (!confirm('이 활동을 삭제하시겠습니까?')) {
+                return;
+            }
+
+            try {
+                if (useFirestore) {
+                    await db.collection('activities').doc(activityId).delete();
+                } else {
+                    activities = activities.filter(a => a.id !== activityId);
+                    saveData();
+                    renderCurrentTab();
+                }
+            } catch (error) {
+                console.error('활동 삭제 실패:', error);
+                alert('활동 삭제 중 오류가 발생했습니다.' + getErrorMessage(error));
+            }
+        }
+
+        function renderManagerActivityOverview(container) {
+            const todayStr = getTodayString();
+            const allCourses = ['코스1 (강동구)', '코스2 (강남구, 양평)', '코스3 (서초구)', 
+                               '코스4 (송파구, 경기도 광주)', '코스5 (구리, 남양주)', '코스6 (하남, 강남, 서초)'];
+
+            const todayByCourse = {};
+            allCourses.forEach(c => {
+                todayByCourse[c] = activities.filter(a => a.course === c && a.date === todayStr);
+            });
+
+            const startOfWeek = new Date();
+            startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay() + 1);
+            startOfWeek.setHours(0,0,0,0);
+
+            const weekByCourse = {};
+            allCourses.forEach(c => {
+                weekByCourse[c] = activities.filter(a => a.course === c && new Date(a.date) >= startOfWeek);
+            });
+
+            let html = `
+                <div class="space-y-6">
+                    <div class="px-1">
+                        <h2 class="text-2xl font-bold tracking-tighter">팀 현황 모니터링</h2>
+                        <p class="text-sm text-slate-500">전체 코스 신규등록 현황</p>
+                    </div>
+
+                    <div>
+                        <h3 class="font-semibold mb-3 px-1">오늘 코스별 신규 등록</h3>
+                        <div class="space-y-3">
+            `;
+
+            allCourses.forEach(course => {
+                const acts = todayByCourse[course];
+                html += `
+                    <div class="bg-white border rounded-3xl p-4">
+                        <div class="flex justify-between mb-2">
+                            <span class="font-semibold">${safeText(course)}</span>
+                            <span class="text-xs bg-teal-100 text-teal-700 px-3 py-1 rounded-full">${acts.length}건</span>
+                        </div>
+                        ${acts.length > 0 ? acts.map(act => `
+                            <div class="text-sm border-t pt-2 mt-2">
+                                <div><span class="text-slate-500">거래처:</span> <span class="font-medium">${safeText(act.client || '미입력')}</span></div>
+                                <div><span class="text-slate-500">신규 품목:</span> ${safeList(act.products)}</div>
+                            </div>
+                        `).join('') : `<div class="text-sm text-slate-400 py-1">등록 없음</div>`}
+                    </div>
+                `;
+            });
+
+            html += `</div></div>`;
+
+            html += `
+                <div>
+                    <h3 class="font-semibold mb-3 px-1">이번 주 코스별 등록 현황</h3>
+                    <div class="bg-white border rounded-3xl p-5 space-y-3">
+            `;
+
+            allCourses.forEach(course => {
+                html += `
+                    <div class="flex justify-between">
+                        <span>${safeText(course)}</span>
+                        <span class="font-bold">${weekByCourse[course].length}건</span>
+                    </div>
+                `;
+            });
+
+            html += `</div></div></div>`;
+            container.innerHTML = html;
+        }
+
+        // ===== 랭킹 =====
+        function renderRanking(container) {
+            const currentMonth = new Date().getMonth();
+            const currentYear = new Date().getFullYear();
+
+            const thisMonthAllActivities = activities.filter(a => 
+                new Date(a.date).getMonth() === currentMonth && 
+                new Date(a.date).getFullYear() === currentYear
+            );
+
+            const courseActivityCount = {};
+            const allCourses = ['코스1 (강동구)', '코스2 (강남구, 양평)', '코스3 (서초구)', 
+                               '코스4 (송파구, 경기도 광주)', '코스5 (구리, 남양주)', '코스6 (하남, 강남, 서초)'];
+
+            allCourses.forEach(course => {
+                courseActivityCount[course] = thisMonthAllActivities.filter(a => a.course === course).length;
+            });
+
+            const rankedCourses = Object.entries(courseActivityCount)
+                .sort((a, b) => b[1] - a[1]);
+
+            let html = `
+                <div class="space-y-5">
+                    <div class="px-1">
+                        <h2 class="text-2xl font-bold tracking-tighter">이번 달 코스 랭킹</h2>
+                        <p class="text-sm text-slate-500">실시간 집계</p>
+                    </div>
+
+                    <div class="space-y-3">
+            `;
+
+            rankedCourses.forEach(([course, count], index) => {
+                const rank = index + 1;
+                let rankColor = '';
+                let bgColor = 'bg-white';
+                let borderColor = 'border-slate-200';
+                let rankDisplay = '';
+
+                if (rank === 1) {
+                    rankColor = 'text-yellow-500';
+                    bgColor = 'bg-gradient-to-r from-yellow-50 to-white';
+                    borderColor = 'border-yellow-300';
+                    rankDisplay = `<i class="fa-solid fa-trophy text-2xl ${rankColor}"></i>`;
+                } else if (rank === 2) {
+                    rankColor = 'text-slate-400';
+                    bgColor = 'bg-gradient-to-r from-slate-50 to-white';
+                    borderColor = 'border-slate-300';
+                    rankDisplay = `<i class="fa-solid fa-medal text-2xl ${rankColor}"></i>`;
+                } else if (rank === 3) {
+                    rankColor = 'text-amber-700';
+                    bgColor = 'bg-gradient-to-r from-amber-50 to-white';
+                    borderColor = 'border-amber-300';
+                    rankDisplay = `<i class="fa-solid fa-award text-2xl ${rankColor}"></i>`;
+                } else {
+                    rankDisplay = `<span class="text-2xl font-bold text-slate-300">${rank}</span>`;
+                }
+
+                const percentage = thisMonthAllActivities.length > 0 
+                    ? Math.round((count / thisMonthAllActivities.length) * 100) 
+                    : 0;
+
+                html += `
+                    <div class="${bgColor} border ${borderColor} rounded-3xl p-5">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-4">
+                                <div class="w-10 flex justify-center">
+                                    ${rankDisplay}
+                                </div>
+                                <div>
+                                    <div class="font-semibold text-lg">${safeText(course)}</div>
+                                    <div class="text-xs text-slate-500">이번 달 활동</div>
+                                </div>
+                            </div>
+
+                            <div class="text-right">
+                                <div class="text-4xl font-bold text-[#0F172A] tabular-nums">${count}</div>
+                                <div class="text-xs text-slate-400 -mt-1">건</div>
+                            </div>
+                        </div>
+
+                        <div class="mt-3">
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-slate-500">전체 대비</span>
+                                <span class="font-medium text-teal-600">${percentage}%</span>
+                            </div>
+                            <div class="w-full bg-slate-100 rounded-full h-[6px]">
+                                <div class="bg-teal-500 h-[6px] rounded-full transition-all duration-300" style="width: ${percentage}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += `
+                    </div>
+                </div>
+            `;
+            container.innerHTML = html;
+        }
+
+        // ===== 팀 활동 =====
+        function renderTeamFeed(container) {
+            const todayStr = getTodayString();
+            const allCourses = ['코스1 (강동구)', '코스2 (강남구, 양평)', '코스3 (서초구)', 
+                               '코스4 (송파구, 경기도 광주)', '코스5 (구리, 남양주)', '코스6 (하남, 강남, 서초)'];
+
+            const todayByCourse = {};
+            allCourses.forEach(course => {
+                todayByCourse[course] = activities.filter(a => a.course === course && a.date === todayStr);
+            });
+
+            let html = `
+                <div class="space-y-5">
+                    <div class="px-1">
+                        <h2 class="text-2xl font-bold tracking-tighter">팀 활동 현황</h2>
+                        <p class="text-sm text-slate-500">오늘 코스별 신규활동</p>
+                    </div>
+
+                    <div class="space-y-4">
+            `;
+
+            allCourses.forEach(course => {
+                const acts = todayByCourse[course];
+                html += `
+                    <div class="bg-white border rounded-3xl p-4">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="font-semibold">${safeText(course)}</div>
+                            <span class="px-3 py-1 text-xs rounded-full font-medium ${acts.length > 0 ? 'bg-teal-100 text-teal-700' : 'bg-slate-100 text-slate-500'}">
+                                ${acts.length}건
+                            </span>
+                        </div>
+
+                        ${acts.length > 0 ? acts.map(act => `
+                            <div class="pl-1 border-l-2 border-teal-200 mb-2 last:mb-0">
+                                <div class="text-sm">
+                                    <span class="font-medium">${safeText(act.client || '거래처 미입력')}</span>
+                                </div>
+                                <div class="text-xs text-slate-600 mt-0.5">신규 품목: ${safeList(act.products)}</div>
+                                <div class="text-[10px] text-slate-400 mt-1">${safeText(act.registeredBy)}</div>
+                            </div>
+                        `).join('') : `
+                            <div class="text-sm text-slate-400">오늘 등록된 활동 없음</div>
+                        `}
+                    </div>
+                `;
+            });
+
+            html += `</div></div>`;
+            container.innerHTML = html;
+        }
+
+        // ===== 리포트 =====
+        function renderReport(container) {
+            const now = new Date();
+            const currentMonth = now.getMonth();
+            const currentYear = now.getFullYear();
+
+            const startOfWeek = new Date(now);
+            startOfWeek.setDate(now.getDate() - now.getDay() + 1);
+            startOfWeek.setHours(0,0,0,0);
+
+            const endOfWeek = new Date(startOfWeek);
+            endOfWeek.setDate(startOfWeek.getDate() + 6);
+
+            const thisWeekActivities = activities.filter(a => {
+                const d = new Date(a.date);
+                return d >= startOfWeek && d <= endOfWeek && a.registeredBy === currentUser.name;
+            });
+
+            const thisMonthMyActs = activities.filter(a => 
+                a.registeredBy === currentUser.name && 
+                new Date(a.date).getMonth() === currentMonth &&
+                new Date(a.date).getFullYear() === currentYear
+            );
+
+            const courseCounts = {};
+            thisMonthMyActs.forEach(a => {
+                courseCounts[a.course] = (courseCounts[a.course] || 0) + 1;
+            });
+
+            const productCountThisMonth = {};
+            thisMonthMyActs.forEach(a => {
+                a.products.forEach(p => {
+                    productCountThisMonth[p] = (productCountThisMonth[p] || 0) + 1;
+                });
+            });
+            const topProductsThisMonth = Object.entries(productCountThisMonth)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 5);
+
+            const weeklyData = [];
+            for (let i = 0; i < 4; i++) {
+                const weekStart = new Date(now);
+                weekStart.setDate(now.getDate() - now.getDay() + 1 - (i * 7));
+                weekStart.setHours(0,0,0,0);
+                
+                const weekEnd = new Date(weekStart);
+                weekEnd.setDate(weekStart.getDate() + 6);
+
+                const weekActs = activities.filter(a => {
+                    const d = new Date(a.date);
+                    return d >= weekStart && d <= weekEnd && a.registeredBy === currentUser.name;
+                });
+
+                const firstDayOfMonth = new Date(weekStart.getFullYear(), weekStart.getMonth(), 1).getDay();
+                const weekOfMonth = Math.ceil((weekStart.getDate() + firstDayOfMonth) / 7);
+                const weekLabelText = `${weekStart.getMonth() + 1}월 ${weekOfMonth}째주`;
+
+                weeklyData.push({
+                    weekLabel: weekLabelText,
+                    count: weekActs.length,
+                    activities: weekActs
+                });
+            }
+
+            const monthlyData = [];
+            for (let i = 0; i < 3; i++) {
+                const month = (currentMonth - i + 12) % 12;
+                const year = currentYear - (currentMonth - i < 0 ? 1 : 0);
+
+                const monthActs = activities.filter(a => {
+                    const d = new Date(a.date);
+                    return d.getMonth() === month && d.getFullYear() === year && a.registeredBy === currentUser.name;
+                });
+
+                monthlyData.push({
+                    label: `${year}년 ${month+1}월`,
+                    count: monthActs.length
+                });
+            }
+
+            let html = `
+                <div class="space-y-8">
+                    <div>
+                        <h2 class="text-xl font-bold mb-1 px-1">리포트</h2>
+                        <p class="text-sm text-slate-500 px-1">주간 및 월별 활동 현황</p>
+                    </div>
+
+                    <div>
+                        <h3 class="font-semibold mb-3 px-1">이번 주 등록한 활동 (${thisWeekActivities.length}건)</h3>
+                        ${thisWeekActivities.length > 0 ? 
+                            thisWeekActivities.map(act => `
+                                <div class="bg-white border rounded-3xl p-4 mb-2">
+                                    <div class="flex justify-between text-sm">
+                                        <div class="font-medium">${act.date}</div>
+                                        <div class="text-teal-600">${safeText(act.course)}</div>
+                                    </div>
+                                    <div class="mt-1 text-sm">${safeList(act.products)}</div>
+                                    ${act.memo ? `<div class="text-xs text-slate-500 mt-1">${safeText(act.memo)}</div>` : ''}
+                                </div>
+                            `).join('') : 
+                            `<div class="text-center py-4 text-sm text-slate-400 bg-white border rounded-3xl">이번 주 등록한 활동이 없습니다.</div>`
+                        }
+                    </div>
+
+                    <div>
+                        <h3 class="font-semibold mb-3 px-1">최근 4주 주간 활동 추이</h3>
+                        
+                        <div class="bg-white border rounded-3xl p-4 mb-4">
+                            <canvas id="weekly-chart" height="130"></canvas>
+                        </div>
+
+                        <div class="bg-white border rounded-3xl p-4">
+                            <div class="text-sm font-semibold mb-3">주차별 코스 활동 현황</div>
+                            <div class="space-y-4 text-sm">
+                                ${weeklyData.map((week, idx) => {
+                                    const weekCourseCount = {};
+                                    week.activities.forEach(act => {
+                                        weekCourseCount[act.course] = (weekCourseCount[act.course] || 0) + 1;
+                                    });
+                                    
+                                    return `
+                                        <div>
+                                            <div class="flex justify-between mb-1.5">
+                                                <span class="font-medium">${week.weekLabel}</span>
+                                                <span class="text-teal-600 font-semibold">${week.count}건</span>
+                                            </div>
+                                            <div class="pl-1 space-y-0.5 text-xs">
+                                                ${Object.entries(weekCourseCount).map(([course, cnt]) => `
+                                                    <div class="flex justify-between text-slate-600">
+                                                        <span>${safeText(course)}</span>
+                                                        <span>${cnt}건</span>
+                                                    </div>
+                                                `).join('')}
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 class="font-semibold mb-3 px-1">이번 달 요약 보고서</h3>
+                        
+                        <div class="bg-white border rounded-3xl p-5 space-y-4">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <div class="text-xs text-slate-500">총 활동 건수</div>
+                                    <div class="text-3xl font-bold text-[#0F172A]">${thisMonthMyActs.length}</div>
+                                </div>
+                                <div>
+                                    <div class="text-xs text-slate-500">활동한 코스 수</div>
+                                    <div class="text-3xl font-bold text-teal-600">
+                                        ${Object.keys(courseCounts).filter(c => courseCounts[c] > 0).length}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div class="text-xs text-slate-500 mb-2">코스별 활동</div>
+                                <div class="space-y-1.5">
+                                    ${Object.entries(courseCounts)
+                                        .sort((a,b) => b[1] - a[1])
+                                        .map(([course, count]) => `
+                                            <div class="flex justify-between text-sm">
+                                                <span>${safeText(course)}</span>
+                                                <span class="font-semibold">${count}건</span>
+                                            </div>
+                                        `).join('')}
+                                </div>
+                            </div>
+
+                            <div>
+                                <div class="text-xs text-slate-500 mb-2">이번 달 많이 홍보한 품목 Top 5</div>
+                                <div class="space-y-1">
+                                    ${topProductsThisMonth.length > 0 ? 
+                                        topProductsThisMonth.map(([product, count]) => `
+                                            <div class="flex justify-between text-sm">
+                                                <span>${safeText(product)}</span>
+                                                <span class="font-semibold text-teal-600">${count}회</span>
+                                            </div>
+                                        `).join('') : 
+                                        `<div class="text-sm text-slate-400">데이터 없음</div>`
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            container.innerHTML = html;
+
+            setTimeout(() => {
+                const ctx = document.getElementById('weekly-chart');
+                if (ctx && weeklyData.length > 0) {
+                    new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: weeklyData.map(w => w.weekLabel).reverse(),
+                            datasets: [{
+                                label: '활동 건수',
+                                data: weeklyData.map(w => w.count).reverse(),
+                                backgroundColor: '#14b8a6',
+                                borderRadius: 6,
+                                barThickness: 28
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: { callbacks: { label: (ctx) => `${ctx.raw}건` } }
+                            },
+                            scales: {
+                                y: { beginAtZero: true, ticks: { stepSize: 1 } },
+                                x: { grid: { display: false } }
+                            }
+                        }
+                    });
+                }
+            }, 50);
+        }
+
+        // ===== 공지사항 =====
+        function renderNotice(container) {
+            let html = `
+                <div class="flex justify-between items-center mb-4 px-1">
+                    <h2 class="text-2xl font-bold tracking-tighter">공지사항</h2>
+                    <button onclick="showAddNoticeModal()" class="px-4 py-2.5 bg-[#0F172A] hover:bg-black text-white text-sm font-medium rounded-2xl transition-colors">+ 새 공지</button>
+                </div>
+                <div class="space-y-3">
+            `;
+
+            if (notices.length === 0) {
+                html += `<div class="text-center py-10 text-slate-400 bg-white border border-dashed rounded-3xl">등록된 공지사항이 없습니다.</div>`;
+            } else {
+                notices.forEach(n => {
+                    html += `
+                        <div class="bg-white border ${n.important ? 'border-red-200' : 'border-slate-200'} rounded-3xl p-5 ${n.important ? 'shadow-sm' : ''}">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="flex-1 min-w-0">
+                                    ${n.important ? `
+                                        <span class="inline-block mb-2 text-xs font-semibold bg-red-100 text-red-600 px-3 py-1 rounded-full">중요</span>
+                                    ` : ''}
+                                    <div class="font-bold text-lg leading-tight pr-2">${safeText(n.title)}</div>
+                                </div>
+                                <button onclick="deleteNotice('${n.id}', event)"
+                                        class="text-slate-300 hover:text-red-500 p-1 -mt-1 flex-shrink-0"
+                                        title="공지 삭제" aria-label="공지 삭제">
+                                    <i class="fa-solid fa-trash text-sm"></i>
+                                </button>
+                            </div>
+                            
+                            <div class="mt-3 text-[15px] text-slate-700 leading-relaxed whitespace-pre-wrap">
+                                ${safeText(n.content)}
+                            </div>
+                            
+                            <div class="mt-4 pt-3 border-t text-xs text-slate-400 flex justify-between items-center">
+                                <span>작성자: ${safeText(n.createdBy || '미기록')} · 작성일: ${formatKoreanDate(n.createdAt)}</span>
+                                ${n.important ? `<span class="text-red-500 font-medium">중요 공지</span>` : ''}
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+
+            html += `</div>`;
+            container.innerHTML = html;
+        }
+
+        function showAddNoticeModal() {
+            const modalHTML = `
+                <div id="notice-modal" class="fixed inset-0 bg-black/60 z-[100] flex items-end md:items-center justify-center">
+                    <div onclick="event.stopImmediatePropagation()" class="bg-white w-full max-w-[480px] rounded-t-3xl md:rounded-3xl md:m-4 p-5">
+                        <h3 class="font-bold text-xl mb-4">새 공지사항 작성</h3>
+                        
+                        <div class="space-y-4">
+                            <div>
+                                <label class="text-sm font-medium mb-1.5 block">제목</label>
+                                <input type="text" id="notice-title" 
+                                       class="w-full border border-slate-200 focus:border-teal-500 rounded-2xl px-4 py-3 text-base outline-none"
+                                       placeholder="공지 제목을 입력하세요">
+                            </div>
+
+                            <div>
+                                <label class="text-sm font-medium mb-1.5 block">내용 (최대 1000자)</label>
+                                <textarea id="notice-content" maxlength="1000" rows="6"
+                                          class="w-full border border-slate-200 focus:border-teal-500 rounded-3xl px-4 py-3 text-base outline-none resize-none"
+                                          placeholder="공지 내용을 입력하세요"></textarea>
+                                <div class="text-right text-xs text-slate-400 mt-1">
+                                    <span id="char-count">0</span>/1000
+                                </div>
+                            </div>
+
+                            <div class="flex items-center gap-2">
+                                <input type="checkbox" id="notice-important" class="w-4 h-4 accent-teal-600">
+                                <label for="notice-important" class="text-sm">중요 공지로 표시</label>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-3 mt-6">
+                            <button onclick="closeNoticeModal()" 
+                                    class="flex-1 py-3.5 border border-slate-200 rounded-2xl font-semibold text-slate-600">
+                                취소
+                            </button>
+                            <button id="notice-save-btn" onclick="submitNotice()" 
+                                    class="flex-1 py-3.5 bg-[#0F172A] text-white font-semibold rounded-2xl">
+                                등록하기
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            const existing = document.getElementById('notice-modal');
+            if (existing) existing.remove();
+
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+            const textarea = document.getElementById('notice-content');
+            const charCount = document.getElementById('char-count');
+            
+            textarea.addEventListener('input', () => {
+                charCount.textContent = textarea.value.length;
+            });
+        }
+
+        function closeNoticeModal() {
+            const modal = document.getElementById('notice-modal');
+            if (modal) modal.remove();
+        }
+
+        async function submitNotice() {
+            const saveBtn = document.getElementById('notice-save-btn');
+            if (saveBtn) {
+                saveBtn.disabled = true;
+                saveBtn.textContent = '등록 중...';
+            }
+            const title = document.getElementById('notice-title').value.trim();
+            const content = document.getElementById('notice-content').value.trim();
+            const important = document.getElementById('notice-important').checked;
+
+            if (!title) {
+                alert('제목을 입력해주세요.');
+                if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '등록하기'; }
+                return;
+            }
+            if (!content) {
+                alert('내용을 입력해주세요.');
+                if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '등록하기'; }
+                return;
+            }
+
+            const newNotice = {
+                id: 'n' + Date.now(),
+                title,
+                content,
+                important,
+                createdBy: currentUser ? currentUser.name : '알 수 없음',
+                createdAt: new Date().toISOString()
+            };
+
+            try {
+                if (useFirestore) {
+                    await db.collection('notices').doc(newNotice.id).set(cleanForFirestore(newNotice));
+                } else {
+                    notices.unshift(newNotice);
+                    saveData();
+                }
+
+                closeNoticeModal();
+                renderCurrentTab();
+
+                const notifTitle = important ? "중요 공지사항 등록" : "새 공지사항 등록";
+                const notifBody = `${safeText(currentUser.name)}님이 새 공지사항을 등록했습니다.`;
+                showLocalNotification(notifTitle, notifBody, 'notice');
+            } catch (error) {
+                if (saveBtn) {
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = '등록하기';
+                }
+                handleFirestoreError('공지사항 저장', error);
+            }
+        }
+
+        async function deleteNotice(noticeId, event) {
+            if (event) event.stopImmediatePropagation();
+
+            if (!noticeId) {
+                alert('삭제할 공지사항 ID를 찾을 수 없습니다.');
+                return;
+            }
+
+            if (!confirm('이 공지사항을 삭제하시겠습니까?')) {
+                return;
+            }
+
+            try {
+                if (useFirestore) {
+                    await db.collection('notices').doc(noticeId).delete();
+                } else {
+                    notices = notices.filter(n => n.id !== noticeId);
+                    saveData();
+                    renderCurrentTab();
+                }
+            } catch (error) {
+                console.error('공지사항 삭제 실패:', error);
+                alert('공지사항 삭제 중 오류가 발생했습니다. Firestore 규칙과 설정을 확인해주세요.' + getErrorMessage(error));
+            }
+        }
+
+        // ===== 초기화 =====
+        async function initApp() {
+            initTailwind();
+            loadData();
+            await initFirebase();
+
+            if (useFirestore && firebaseAuthReady) {
+                await startRealtimeSync();
+            }
+
+            if (currentUser) {
+                document.getElementById('auth-screen').classList.add('hidden');
+                document.getElementById('main-app').classList.remove('hidden');
+                document.getElementById('header-user-name').textContent = currentUser.name;
+                document.getElementById('header-user-role').textContent = 
+                    currentUser.role === 'manager' ? '팀장' : currentUser.course;
+                switchTab('home');
+            } else {
+                document.getElementById('auth-screen').classList.remove('hidden');
+                document.getElementById('main-app').classList.add('hidden');
+                renderUserList();
+            }
+        }
+
+        window.onload = initApp;
+    </script>
+    <script>
+    // ==================== PWA 설치 버튼 (강제 표시 버전) ====================
+    let deferredPrompt;
+    const installBtn = document.getElementById('install-btn');
+
+    // beforeinstallprompt 이벤트 감지 (가능한 경우에만 사용)
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        console.log('beforeinstallprompt 이벤트 발생');
+    });
+
+    // 설치 버튼 클릭 시 동작
+    function installPWA() {
+        if (deferredPrompt) {
+            // 정상적인 설치 프롬프트 실행
+            deferredPrompt.prompt();
+            deferredPrompt.userChoice.then((choiceResult) => {
+                if (choiceResult.outcome === 'accepted') {
+                    console.log('PWA 설치 수락');
+                } else {
+                    console.log('PWA 설치 거부');
+                }
+                deferredPrompt = null;
+                if (installBtn) installBtn.classList.add('hidden');
+            });
+        } else {
+            // beforeinstallprompt가 안 뜬 경우 안내
+            alert('현재 Live Server 환경에서는 자동 설치가 제한적입니다.\n\n' +
+                  '개발자 도구(F12) → Application 탭 → Manifest → Install 버튼을 클릭해서 설치해주세요.');
+        }
+    }
+
+    // 로그인 성공 후 설치 버튼 표시 (showMainApp 함수에서 호출)
+    function showInstallButtonAfterLogin() {
+        if (installBtn) {
+            installBtn.classList.remove('hidden');
+            installBtn.classList.add('flex', 'items-center', 'gap-1');
+        }
+    }
+
+    // 설치 완료 시 버튼 숨기기
+    window.addEventListener('appinstalled', () => {
+        console.log('PWA가 설치되었습니다.');
+        if (installBtn) installBtn.classList.add('hidden');
+    });
+
+    // ==================== Service Worker 등록 ====================
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js?v=10')
+                .then(registration => {
+                    console.log('✅ Service Worker 등록 성공');
+                })
+                .catch(error => {
+                    console.error('❌ Service Worker 등록 실패:', error);
+                });
+        });
+    }
+</script>
+<script>
+    // ==================== Notification API ====================
+
+    // 알림 권한 요청 함수
+    function requestNotificationPermission() {
+        if (!("Notification" in window)) {
+            console.log("이 브라우저는 알림을 지원하지 않습니다.");
+            return;
+        }
+
+        if (Notification.permission === "default") {
+            Notification.requestPermission().then(permission => {
+                if (permission === "granted") {
+                    console.log("알림 권한이 허용되었습니다.");
+                }
+            });
+        }
+    }
+
+    // 알림 표시 함수
+    async function showLocalNotification(title, body, clickAction = null) {
+        if (!("Notification" in window)) return;
+        if (Notification.permission !== "granted") return;
+
+        const options = {
+            body: body || '',
+            icon: "/icons/icon-192.png",
+            badge: "/icons/icon-192.png",
+            tag: "dongbu-notification",
+            data: {
+                clickAction: clickAction || '',
+                url: clickAction === 'notice' ? '/?tab=notice' : '/?tab=home'
+            }
+        };
+
+        // 일부 모바일/PWA 환경에서는 new Notification()이 막혀 있습니다.
+        // 이 경우 Service Worker의 showNotification()으로 표시해야 합니다.
+        try {
+            if ('serviceWorker' in navigator) {
+                const registration = await navigator.serviceWorker.ready;
+                if (registration && registration.showNotification) {
+                    await registration.showNotification(title, options);
+                    return;
+                }
+            }
+
+            // Service Worker가 아직 준비되지 않은 데스크톱 브라우저용 예비 처리
+            const notification = new Notification(title, options);
+            notification.onclick = () => {
+                window.focus();
+                if (clickAction === 'notice') {
+                    switchTab('notice');
+                } else if (clickAction === 'activity') {
+                    switchTab('home');
+                }
+                notification.close();
+            };
+        } catch (error) {
+            console.warn('알림 표시 실패:', error);
+        }
+    }
+
+    // 로그인 성공 시 알림 권한 요청 (한 번만)
+    function requestPermissionOnLogin() {
+        if (!("Notification" in window)) return;
+        if (Notification.permission === "default") {
+            setTimeout(() => {
+                requestNotificationPermission();
+            }, 1500);
+        }
+    }
+</script>
+</body>
+</html>
