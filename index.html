@@ -170,7 +170,7 @@
             
             <!-- Header -->
             <header class="medical-header text-white px-5 pt-5 pb-4 sticky top-0 z-50">
-                <div class="flex items-center justify-between">
+                <div class="flex items-center justify-between gap-3">
                     <div>
                         <div class="flex items-center gap-x-3">
                             <div class="w-10 h-10 rounded-2xl overflow-hidden bg-white shadow-sm flex-shrink-0">
@@ -181,8 +181,8 @@
                             </div>
                         </div>
                     </div>
-                    <div class="flex items-center gap-x-3">
-    <div class="text-right">
+                    <div class="flex flex-wrap items-center justify-end gap-2 max-w-[62%]">
+    <div class="text-right min-w-0">
         <div class="font-semibold text-sm" id="header-user-name"></div>
         <div class="text-teal-300 text-xs" id="header-user-role"></div>
     </div>
@@ -192,6 +192,13 @@
             onclick="installPWA()"
             class="hidden text-xs px-3 py-1 bg-teal-500 hover:bg-teal-600 text-white rounded-full transition-colors">
         <i class="fa-solid fa-download mr-1"></i> 앱 설치
+    </button>
+
+    <button id="push-btn"
+            onclick="enablePushNotifications(true)"
+            class="hidden text-xs px-3 py-1 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors items-center gap-1">
+        <i class="fa-solid fa-bell"></i>
+        <span id="push-btn-label">알림 켜기</span>
     </button>
 
     <button onclick="logout()" class="text-xs px-3 py-1 bg-white/10 rounded-full">로그아웃</button>
@@ -240,6 +247,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-messaging-compat.js"></script>
 
     <script>
         // Tailwind 설정
@@ -253,6 +261,9 @@
         let notices = [];
         let users = [];
         let currentTab = 'home';
+        const ALL_COURSES = ['코스1 (강동구)', '코스2 (강남구, 양평)', '코스3 (서초구)', 
+                           '코스4 (송파구, 경기도 광주)', '코스5 (구리, 남양주)', '코스6 (하남, 강남, 서초)'];
+        const VALID_TABS = ['home', 'activity', 'ranking', 'teamfeed', 'report', 'notice'];
 
         // ===== Firebase Firestore 설정 =====
         // Firebase 콘솔 > 프로젝트 설정 > 일반 > 내 앱 > Firebase SDK snippet > 구성(config)을 아래 값으로 교체하세요.
@@ -265,9 +276,12 @@
             messagingSenderId: "70068219821",
             appId: "1:70068219821:web:601eca7cab893d5d7a3b24"
         };
+        const FCM_PUBLIC_VAPID_KEY = "BIC6q-4hh_sNiIpS3Sp77ELpzGLOl0itgnuRYaLxkX2tOMrjNbvhO9dQHlLZo3zg6r7bHmy4uc_WAYD9bVFyy-4";
 
         let db = null;
         let auth = null;
+        let messaging = null;
+        let swRegistration = null;
         let useFirestore = false;
         let firebaseAuthReady = false;
         let firstActivitiesSnapshot = true;
@@ -358,6 +372,61 @@
             return `${year}-${month}-${day}`;
         }
 
+        function getActivityDate(value) {
+            const date = new Date(value);
+            return Number.isNaN(date.getTime()) ? null : date;
+        }
+
+        function isSameMonth(value, year, month) {
+            const date = getActivityDate(value);
+            return !!date && date.getFullYear() === year && date.getMonth() === month;
+        }
+
+        function getMonthLabel(year, month) {
+            return `${year}년 ${month + 1}월`;
+        }
+
+        function getRecentMonths(count) {
+            const now = new Date();
+            return Array.from({ length: count }, (_, index) => {
+                const date = new Date(now.getFullYear(), now.getMonth() - index, 1);
+                return {
+                    year: date.getFullYear(),
+                    month: date.getMonth(),
+                    label: getMonthLabel(date.getFullYear(), date.getMonth())
+                };
+            });
+        }
+
+        function getWeekStart(baseDate, offset = 0) {
+            const date = new Date(baseDate);
+            const day = date.getDay() || 7;
+            date.setDate(date.getDate() - day + 1 - (offset * 7));
+            date.setHours(0,0,0,0);
+            return date;
+        }
+
+        function getWeekEnd(weekStart) {
+            const date = new Date(weekStart);
+            date.setDate(date.getDate() + 6);
+            date.setHours(23,59,59,999);
+            return date;
+        }
+
+        function getWeekLabel(weekStart) {
+            const firstDayOfMonth = new Date(weekStart.getFullYear(), weekStart.getMonth(), 1).getDay();
+            const weekOfMonth = Math.ceil((weekStart.getDate() + firstDayOfMonth) / 7);
+            return `${weekStart.getMonth() + 1}월 ${weekOfMonth}째주`;
+        }
+
+        function jsString(value) {
+            return String(value ?? '')
+                .replaceAll('\\', '\\\\')
+                .replaceAll("'", "\\'")
+                .replaceAll('\n', '\\n')
+                .replaceAll('\r', '\\r');
+        }
+
         function formatKoreanDate(value) {
             if (!value) return '';
             const date = new Date(value);
@@ -381,6 +450,213 @@
         function handleFirestoreError(action, error) {
             console.error(`${action} 실패:`, error);
             alert(`${action} 중 오류가 발생했습니다. Firestore 규칙과 Firebase 설정을 확인해주세요.${getErrorMessage(error)}`);
+        }
+
+        function isFcmVapidKeyReady() {
+            return FCM_PUBLIC_VAPID_KEY &&
+                   !FCM_PUBLIC_VAPID_KEY.includes('PASTE_YOUR') &&
+                   !FCM_PUBLIC_VAPID_KEY.includes('YOUR_FIREBASE');
+        }
+
+        function isPushSupported() {
+            return 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window;
+        }
+
+        function isAppleMobileDevice() {
+            return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+                   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        }
+
+        function isStandalonePWA() {
+            return window.matchMedia('(display-mode: standalone)').matches ||
+                   window.navigator.standalone === true;
+        }
+
+        function getDevicePlatformLabel() {
+            if (isAppleMobileDevice()) return 'ios-pwa';
+            if (/Android/i.test(navigator.userAgent)) return 'android';
+            return 'web';
+        }
+
+        function getPushTokenDocId(token) {
+            return encodeURIComponent(token);
+        }
+
+        async function isFirebaseMessagingSupported() {
+            try {
+                if (!firebase.messaging || !firebase.messaging.isSupported) {
+                    return isPushSupported();
+                }
+                const supported = firebase.messaging.isSupported();
+                return typeof supported.then === 'function' ? await supported : supported;
+            } catch (error) {
+                console.warn('Firebase Messaging 지원 확인 실패:', error);
+                return false;
+            }
+        }
+
+        function updatePushButton(forceVisible = false) {
+            const pushBtn = document.getElementById('push-btn');
+            const pushLabel = document.getElementById('push-btn-label');
+            if (!pushBtn || !pushLabel || !currentUser) return;
+
+            pushBtn.classList.remove('hidden');
+            pushBtn.classList.add('flex');
+
+            if (!isPushSupported()) {
+                pushLabel.textContent = '알림 미지원';
+                pushBtn.classList.add('opacity-60');
+                return;
+            }
+
+            pushBtn.classList.remove('opacity-60');
+            if (Notification.permission === 'granted') {
+                pushLabel.textContent = isFcmVapidKeyReady() ? '알림 켜짐' : '알림 준비';
+            } else if (Notification.permission === 'denied') {
+                pushLabel.textContent = '알림 차단됨';
+            } else {
+                pushLabel.textContent = forceVisible ? '알림 켜기' : '알림 켜기';
+            }
+        }
+
+        async function initPushMessaging() {
+            messaging = null;
+
+            if (!useFirestore || !isPushSupported() || !isFcmVapidKeyReady()) {
+                updatePushButton();
+                return false;
+            }
+
+            const supported = await isFirebaseMessagingSupported();
+            if (!supported) {
+                updatePushButton();
+                return false;
+            }
+
+            try {
+                messaging = firebase.messaging();
+                messaging.onMessage((payload) => {
+                    const data = payload.data || {};
+                    if (document.visibilityState !== 'visible') {
+                        showLocalNotification(
+                            data.title || payload.notification?.title || '동부의원팀 알림',
+                            data.body || payload.notification?.body || '',
+                            data.clickAction || data.type || null
+                        );
+                    }
+                });
+                return true;
+            } catch (error) {
+                console.warn('Firebase Messaging 초기화 실패:', error);
+                messaging = null;
+                updatePushButton();
+                return false;
+            }
+        }
+
+        async function savePushToken() {
+            if (!useFirestore || !db || !currentUser || !messaging || !isFcmVapidKeyReady()) {
+                return false;
+            }
+
+            const registration = await ensureServiceWorkerRegistration();
+            const token = await messaging.getToken({
+                vapidKey: FCM_PUBLIC_VAPID_KEY,
+                serviceWorkerRegistration: registration
+            });
+
+            if (!token) return false;
+
+            const now = new Date().toISOString();
+            await db.collection('pushTokens').doc(getPushTokenDocId(token)).set(cleanForFirestore({
+                token,
+                userId: currentUser.id || currentUser.name,
+                userName: currentUser.name,
+                role: currentUser.role,
+                course: currentUser.course || null,
+                platform: getDevicePlatformLabel(),
+                userAgent: navigator.userAgent,
+                active: true,
+                updatedAt: now,
+                createdAt: now
+            }), { merge: true });
+
+            localStorage.setItem('dongbu_push_token', token);
+            updatePushButton(true);
+            return true;
+        }
+
+        async function enablePushNotifications(showAlert = false) {
+            if (!isPushSupported()) {
+                if (showAlert) alert('이 브라우저에서는 푸시 알림을 지원하지 않습니다.');
+                updatePushButton(true);
+                return false;
+            }
+
+            if (isAppleMobileDevice() && !isStandalonePWA()) {
+                if (showAlert) {
+                    alert('iPhone/iPad에서는 Safari 공유 버튼 → 홈 화면에 추가로 앱을 설치한 뒤, 설치된 앱에서 알림을 켜주세요.');
+                }
+                updatePushButton(true);
+                return false;
+            }
+
+            if (!isFcmVapidKeyReady()) {
+                if (showAlert) {
+                    alert('Firebase 콘솔에서 웹 푸시 인증서 공개 키를 만든 뒤 index.html의 FCM_PUBLIC_VAPID_KEY 값에 넣어야 실시간 푸시가 켜집니다.');
+                }
+                updatePushButton(true);
+                return false;
+            }
+
+            if (!messaging) {
+                await initPushMessaging();
+            }
+
+            if (!messaging) {
+                if (showAlert) alert('현재 브라우저에서 Firebase 푸시를 초기화하지 못했습니다.');
+                updatePushButton(true);
+                return false;
+            }
+
+            const permission = Notification.permission === 'granted'
+                ? 'granted'
+                : await Notification.requestPermission();
+
+            if (permission !== 'granted') {
+                if (showAlert) alert('알림 권한이 허용되지 않았습니다. 브라우저 또는 기기 설정에서 알림을 허용해주세요.');
+                updatePushButton(true);
+                return false;
+            }
+
+            try {
+                const saved = await savePushToken();
+                if (showAlert) {
+                    alert(saved ? '알림이 켜졌습니다.' : '알림 권한은 허용됐지만, 푸시 주소를 저장하지 못했습니다.');
+                }
+                return saved;
+            } catch (error) {
+                console.warn('푸시 토큰 저장 실패:', error);
+                if (showAlert) alert('알림 등록 중 오류가 발생했습니다.' + getErrorMessage(error));
+                updatePushButton(true);
+                return false;
+            }
+        }
+
+        function routeFromNotification(clickAction) {
+            if (!currentUser) return;
+            if (clickAction === 'notice') {
+                switchTab('notice');
+            } else if (clickAction === 'activity') {
+                switchTab('teamfeed');
+            } else if (VALID_TABS.includes(clickAction)) {
+                switchTab(clickAction);
+            }
+        }
+
+        function getInitialTabFromUrl() {
+            const tab = new URLSearchParams(window.location.search).get('tab');
+            return VALID_TABS.includes(tab) ? tab : 'home';
         }
 
         function rerenderAfterRemoteUpdate() {
@@ -596,7 +872,7 @@
             requestPermissionOnLogin();
 
             // 초기 탭 렌더링
-            switchTab('home');
+            switchTab(getInitialTabFromUrl());
             renderUserList();
         }
 
@@ -672,8 +948,7 @@
             const currentYear = now.getFullYear();
             const todayStr = getTodayString();
 
-            const allCourses = ['코스1 (강동구)', '코스2 (강남구, 양평)', '코스3 (서초구)', 
-                               '코스4 (송파구, 경기도 광주)', '코스5 (구리, 남양주)', '코스6 (하남, 강남, 서초)'];
+            const allCourses = ALL_COURSES;
 
             // 이번 달 전체 활동
             const thisMonthActivities = activities.filter(a => 
@@ -1146,8 +1421,7 @@
 
         function renderManagerActivityOverview(container) {
             const todayStr = getTodayString();
-            const allCourses = ['코스1 (강동구)', '코스2 (강남구, 양평)', '코스3 (서초구)', 
-                               '코스4 (송파구, 경기도 광주)', '코스5 (구리, 남양주)', '코스6 (하남, 강남, 서초)'];
+            const allCourses = ALL_COURSES;
 
             const todayByCourse = {};
             allCourses.forEach(c => {
@@ -1225,8 +1499,7 @@
             );
 
             const courseActivityCount = {};
-            const allCourses = ['코스1 (강동구)', '코스2 (강남구, 양평)', '코스3 (서초구)', 
-                               '코스4 (송파구, 경기도 광주)', '코스5 (구리, 남양주)', '코스6 (하남, 강남, 서초)'];
+            const allCourses = ALL_COURSES;
 
             allCourses.forEach(course => {
                 courseActivityCount[course] = thisMonthAllActivities.filter(a => a.course === course).length;
@@ -1276,7 +1549,8 @@
                     : 0;
 
                 html += `
-                    <div class="${bgColor} border ${borderColor} rounded-3xl p-5">
+                    <button onclick="showCourseMonthlyDetail('${jsString(course)}')"
+                            class="block w-full text-left ${bgColor} border ${borderColor} rounded-3xl p-5 hover:border-teal-300 transition-colors">
                         <div class="flex items-center justify-between">
                             <div class="flex items-center gap-4">
                                 <div class="w-10 flex justify-center">
@@ -1289,8 +1563,13 @@
                             </div>
 
                             <div class="text-right">
-                                <div class="text-4xl font-bold text-[#0F172A] tabular-nums">${count}</div>
-                                <div class="text-xs text-slate-400 -mt-1">건</div>
+                                <div class="flex items-center justify-end gap-2">
+                                    <div>
+                                        <div class="text-4xl font-bold text-[#0F172A] tabular-nums">${count}</div>
+                                        <div class="text-xs text-slate-400 -mt-1">건</div>
+                                    </div>
+                                    <i class="fa-solid fa-chevron-right text-slate-300 text-sm"></i>
+                                </div>
                             </div>
                         </div>
 
@@ -1303,7 +1582,7 @@
                                 <div class="bg-teal-500 h-[6px] rounded-full transition-all duration-300" style="width: ${percentage}%"></div>
                             </div>
                         </div>
-                    </div>
+                    </button>
                 `;
             });
 
@@ -1314,11 +1593,117 @@
             container.innerHTML = html;
         }
 
+        function showCourseMonthlyDetail(course) {
+            const months = getRecentMonths(6);
+            const courseActivities = activities
+                .filter(a => a.course === course)
+                .sort((a,b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+            const monthlyRows = months.map(({ year, month, label }) => {
+                const monthActs = courseActivities.filter(a => isSameMonth(a.date, year, month));
+                return { label, count: monthActs.length, activities: monthActs };
+            });
+            const currentMonthActs = monthlyRows[0]?.activities || [];
+            const productCounts = {};
+            currentMonthActs.forEach(act => {
+                (act.products || []).forEach(product => {
+                    productCounts[product] = (productCounts[product] || 0) + 1;
+                });
+            });
+            const topProducts = Object.entries(productCounts)
+                .sort((a,b) => b[1] - a[1])
+                .slice(0, 5);
+            const totalCount = courseActivities.length;
+
+            const modalHTML = `
+                <div id="course-detail-modal" class="fixed inset-0 bg-black/60 z-[100] flex items-end md:items-center justify-center">
+                    <div onclick="event.stopImmediatePropagation()" class="bg-white w-full max-w-[520px] max-h-[88vh] overflow-y-auto rounded-t-3xl md:rounded-3xl md:m-4 p-5">
+                        <div class="flex items-start justify-between gap-3 mb-5">
+                            <div>
+                                <h3 class="font-bold text-xl leading-tight">${safeText(course)}</h3>
+                                <p class="text-sm text-slate-500">월별 신규활동 누적</p>
+                            </div>
+                            <button onclick="closeCourseDetailModal()" class="w-9 h-9 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3 mb-5">
+                            <div class="border rounded-3xl p-4">
+                                <div class="text-xs text-slate-500">전체 누적</div>
+                                <div class="text-3xl font-bold text-[#0F172A]">${totalCount}</div>
+                            </div>
+                            <div class="border rounded-3xl p-4">
+                                <div class="text-xs text-slate-500">이번 달</div>
+                                <div class="text-3xl font-bold text-teal-600">${currentMonthActs.length}</div>
+                            </div>
+                        </div>
+
+                        <div class="border rounded-3xl p-4 mb-5">
+                            <div class="text-sm font-semibold mb-3">최근 6개월</div>
+                            <div class="space-y-3">
+                                ${monthlyRows.map(row => {
+                                    const max = Math.max(...monthlyRows.map(r => r.count), 1);
+                                    const pct = Math.round((row.count / max) * 100);
+                                    return `
+                                        <div>
+                                            <div class="flex justify-between text-sm mb-1">
+                                                <span>${row.label}</span>
+                                                <span class="font-semibold">${row.count}건</span>
+                                            </div>
+                                            <div class="h-2 bg-slate-100 rounded-full">
+                                                <div class="h-2 bg-teal-500 rounded-full" style="width: ${pct}%"></div>
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
+
+                        <div class="border rounded-3xl p-4 mb-5">
+                            <div class="text-sm font-semibold mb-3">이번 달 신규 품목 Top 5</div>
+                            <div class="space-y-1.5">
+                                ${topProducts.length > 0 ? topProducts.map(([product, count]) => `
+                                    <div class="flex justify-between text-sm">
+                                        <span>${safeText(product)}</span>
+                                        <span class="font-semibold text-teal-600">${count}회</span>
+                                    </div>
+                                `).join('') : `<div class="text-sm text-slate-400">데이터 없음</div>`}
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="text-sm font-semibold mb-3">이번 달 상세</div>
+                            <div class="space-y-2">
+                                ${currentMonthActs.length > 0 ? currentMonthActs.map(act => `
+                                    <div class="border rounded-2xl p-3">
+                                        <div class="flex justify-between gap-3 text-sm">
+                                            <span class="font-medium">${safeText(act.client || '거래처 미입력')}</span>
+                                            <span class="text-slate-400 flex-shrink-0">${safeText(act.date)}</span>
+                                        </div>
+                                        <div class="text-xs text-slate-600 mt-1">${safeList(act.products)}</div>
+                                        <div class="text-[11px] text-slate-400 mt-1">${safeText(act.registeredBy || '미기록')}</div>
+                                    </div>
+                                `).join('') : `<div class="text-center py-4 text-sm text-slate-400 border rounded-2xl">이번 달 등록된 활동이 없습니다.</div>`}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            const existing = document.getElementById('course-detail-modal');
+            if (existing) existing.remove();
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+        }
+
+        function closeCourseDetailModal() {
+            const modal = document.getElementById('course-detail-modal');
+            if (modal) modal.remove();
+        }
+
         // ===== 팀 활동 =====
         function renderTeamFeed(container) {
             const todayStr = getTodayString();
-            const allCourses = ['코스1 (강동구)', '코스2 (강남구, 양평)', '코스3 (서초구)', 
-                               '코스4 (송파구, 경기도 광주)', '코스5 (구리, 남양주)', '코스6 (하남, 강남, 서초)'];
+            const allCourses = ALL_COURSES;
 
             const todayByCourse = {};
             allCourses.forEach(course => {
@@ -1370,24 +1755,22 @@
             const now = new Date();
             const currentMonth = now.getMonth();
             const currentYear = now.getFullYear();
+            const isManager = currentUser.role === 'manager';
+            const reportActivities = isManager
+                ? activities
+                : activities.filter(a => a.registeredBy === currentUser.name);
+            const reportCourses = isManager ? ALL_COURSES : [currentUser.course].filter(Boolean);
+            const reportScopeName = isManager ? '팀 전체' : '내';
 
-            const startOfWeek = new Date(now);
-            startOfWeek.setDate(now.getDate() - now.getDay() + 1);
-            startOfWeek.setHours(0,0,0,0);
+            const startOfWeek = getWeekStart(now);
+            const endOfWeek = getWeekEnd(startOfWeek);
 
-            const endOfWeek = new Date(startOfWeek);
-            endOfWeek.setDate(startOfWeek.getDate() + 6);
-
-            const thisWeekActivities = activities.filter(a => {
+            const thisWeekActivities = reportActivities.filter(a => {
                 const d = new Date(a.date);
-                return d >= startOfWeek && d <= endOfWeek && a.registeredBy === currentUser.name;
+                return d >= startOfWeek && d <= endOfWeek;
             });
 
-            const thisMonthMyActs = activities.filter(a => 
-                a.registeredBy === currentUser.name && 
-                new Date(a.date).getMonth() === currentMonth &&
-                new Date(a.date).getFullYear() === currentYear
-            );
+            const thisMonthMyActs = reportActivities.filter(a => isSameMonth(a.date, currentYear, currentMonth));
 
             const courseCounts = {};
             thisMonthMyActs.forEach(a => {
@@ -1406,24 +1789,16 @@
 
             const weeklyData = [];
             for (let i = 0; i < 4; i++) {
-                const weekStart = new Date(now);
-                weekStart.setDate(now.getDate() - now.getDay() + 1 - (i * 7));
-                weekStart.setHours(0,0,0,0);
-                
-                const weekEnd = new Date(weekStart);
-                weekEnd.setDate(weekStart.getDate() + 6);
+                const weekStart = getWeekStart(now, i);
+                const weekEnd = getWeekEnd(weekStart);
 
-                const weekActs = activities.filter(a => {
+                const weekActs = reportActivities.filter(a => {
                     const d = new Date(a.date);
-                    return d >= weekStart && d <= weekEnd && a.registeredBy === currentUser.name;
+                    return d >= weekStart && d <= weekEnd;
                 });
 
-                const firstDayOfMonth = new Date(weekStart.getFullYear(), weekStart.getMonth(), 1).getDay();
-                const weekOfMonth = Math.ceil((weekStart.getDate() + firstDayOfMonth) / 7);
-                const weekLabelText = `${weekStart.getMonth() + 1}월 ${weekOfMonth}째주`;
-
                 weeklyData.push({
-                    weekLabel: weekLabelText,
+                    weekLabel: getWeekLabel(weekStart),
                     count: weekActs.length,
                     activities: weekActs
                 });
@@ -1434,10 +1809,7 @@
                 const month = (currentMonth - i + 12) % 12;
                 const year = currentYear - (currentMonth - i < 0 ? 1 : 0);
 
-                const monthActs = activities.filter(a => {
-                    const d = new Date(a.date);
-                    return d.getMonth() === month && d.getFullYear() === year && a.registeredBy === currentUser.name;
-                });
+                const monthActs = reportActivities.filter(a => isSameMonth(a.date, year, month));
 
                 monthlyData.push({
                     label: `${year}년 ${month+1}월`,
@@ -1449,11 +1821,11 @@
                 <div class="space-y-8">
                     <div>
                         <h2 class="text-xl font-bold mb-1 px-1">리포트</h2>
-                        <p class="text-sm text-slate-500 px-1">주간 및 월별 활동 현황</p>
+                        <p class="text-sm text-slate-500 px-1">${reportScopeName} 주간 및 월별 활동 현황</p>
                     </div>
 
                     <div>
-                        <h3 class="font-semibold mb-3 px-1">이번 주 등록한 활동 (${thisWeekActivities.length}건)</h3>
+                        <h3 class="font-semibold mb-3 px-1">${reportScopeName} 이번 주 활동 (${thisWeekActivities.length}건)</h3>
                         ${thisWeekActivities.length > 0 ? 
                             thisWeekActivities.map(act => `
                                 <div class="bg-white border rounded-3xl p-4 mb-2">
@@ -1492,10 +1864,10 @@
                                                 <span class="text-teal-600 font-semibold">${week.count}건</span>
                                             </div>
                                             <div class="pl-1 space-y-0.5 text-xs">
-                                                ${Object.entries(weekCourseCount).map(([course, cnt]) => `
+                                                ${reportCourses.map(course => `
                                                     <div class="flex justify-between text-slate-600">
                                                         <span>${safeText(course)}</span>
-                                                        <span>${cnt}건</span>
+                                                        <span>${weekCourseCount[course] || 0}건</span>
                                                     </div>
                                                 `).join('')}
                                             </div>
@@ -1507,7 +1879,7 @@
                     </div>
 
                     <div>
-                        <h3 class="font-semibold mb-3 px-1">이번 달 요약 보고서</h3>
+                        <h3 class="font-semibold mb-3 px-1">${reportScopeName} 이번 달 요약 보고서</h3>
                         
                         <div class="bg-white border rounded-3xl p-5 space-y-4">
                             <div class="grid grid-cols-2 gap-4">
@@ -1782,7 +2154,9 @@
         async function initApp() {
             initTailwind();
             loadData();
+            await ensureServiceWorkerRegistration();
             await initFirebase();
+            await initPushMessaging();
 
             if (useFirestore && firebaseAuthReady) {
                 await startRealtimeSync();
@@ -1794,7 +2168,9 @@
                 document.getElementById('header-user-name').textContent = currentUser.name;
                 document.getElementById('header-user-role').textContent = 
                     currentUser.role === 'manager' ? '팀장' : currentUser.course;
-                switchTab('home');
+                showInstallButtonAfterLogin();
+                requestPermissionOnLogin();
+                switchTab(getInitialTabFromUrl());
             } else {
                 document.getElementById('auth-screen').classList.remove('hidden');
                 document.getElementById('main-app').classList.add('hidden');
@@ -1852,35 +2228,48 @@
     });
 
     // ==================== Service Worker 등록 ====================
-    if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('/sw.js?v=10')
-                .then(registration => {
-                    console.log('✅ Service Worker 등록 성공');
-                })
-                .catch(error => {
-                    console.error('❌ Service Worker 등록 실패:', error);
-                });
-        });
+    async function ensureServiceWorkerRegistration() {
+        if (!('serviceWorker' in navigator)) return null;
+        if (swRegistration) return swRegistration;
+
+        try {
+            swRegistration = await navigator.serviceWorker.register('/sw.js?v=11');
+            console.log('✅ Service Worker 등록 성공');
+
+            navigator.serviceWorker.addEventListener('message', (event) => {
+                const data = event.data || {};
+                if (data.type === 'notification-click') {
+                    routeFromNotification(data.clickAction);
+                }
+            });
+
+            return swRegistration;
+        } catch (error) {
+            console.error('❌ Service Worker 등록 실패:', error);
+            return null;
+        }
     }
 </script>
 <script>
     // ==================== Notification API ====================
 
     // 알림 권한 요청 함수
-    function requestNotificationPermission() {
+    async function requestNotificationPermission() {
         if (!("Notification" in window)) {
             console.log("이 브라우저는 알림을 지원하지 않습니다.");
-            return;
+            return false;
         }
 
         if (Notification.permission === "default") {
-            Notification.requestPermission().then(permission => {
-                if (permission === "granted") {
-                    console.log("알림 권한이 허용되었습니다.");
-                }
-            });
+            const permission = await Notification.requestPermission();
+            if (permission === "granted") {
+                console.log("알림 권한이 허용되었습니다.");
+                return true;
+            }
+            return false;
         }
+
+        return Notification.permission === "granted";
     }
 
     // 알림 표시 함수
@@ -1917,7 +2306,7 @@
                 if (clickAction === 'notice') {
                     switchTab('notice');
                 } else if (clickAction === 'activity') {
-                    switchTab('home');
+                    switchTab('teamfeed');
                 }
                 notification.close();
             };
@@ -1928,11 +2317,10 @@
 
     // 로그인 성공 시 알림 권한 요청 (한 번만)
     function requestPermissionOnLogin() {
+        updatePushButton(true);
         if (!("Notification" in window)) return;
-        if (Notification.permission === "default") {
-            setTimeout(() => {
-                requestNotificationPermission();
-            }, 1500);
+        if (Notification.permission === "granted" && isFcmVapidKeyReady()) {
+            savePushToken().catch(error => console.warn('푸시 토큰 자동 갱신 실패:', error));
         }
     }
 </script>

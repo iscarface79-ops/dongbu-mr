@@ -1,4 +1,13 @@
-const CACHE_NAME = 'dongbu-mr-pwa-v10';
+const CACHE_NAME = 'dongbu-mr-pwa-v11';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDLrfBj9zObzo_UisOHGKuBLsQX6Dqr1kY",
+  authDomain: "dongbu-mr-pwa.firebaseapp.com",
+  projectId: "dongbu-mr-pwa",
+  storageBucket: "dongbu-mr-pwa.firebasestorage.app",
+  messagingSenderId: "70068219821",
+  appId: "1:70068219821:web:601eca7cab893d5d7a3b24"
+};
 
 const APP_SHELL = [
   '/',
@@ -7,6 +16,35 @@ const APP_SHELL = [
   '/icons/icon-192.png',
   '/icons/icon-512.png'
 ];
+
+try {
+  importScripts('https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js');
+  importScripts('https://www.gstatic.com/firebasejs/10.12.5/firebase-messaging-compat.js');
+
+  firebase.initializeApp(firebaseConfig);
+
+  const messaging = firebase.messaging();
+  messaging.onBackgroundMessage((payload) => {
+    const data = payload.data || {};
+    const notification = payload.notification || {};
+    const title = data.title || notification.title || '동부의원팀 알림';
+    const clickAction = data.clickAction || data.type || '';
+    const url = data.url || (clickAction === 'notice' ? '/?tab=notice' : '/?tab=teamfeed');
+
+    self.registration.showNotification(title, {
+      body: data.body || notification.body || '',
+      icon: data.icon || '/icons/icon-192.png',
+      badge: data.badge || '/icons/icon-192.png',
+      tag: data.tag || `dongbu-${clickAction || 'push'}`,
+      data: {
+        clickAction,
+        url
+      }
+    });
+  });
+} catch (error) {
+  console.warn('Firebase Messaging service worker 초기화 실패:', error);
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

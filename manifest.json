@@ -2,6 +2,7 @@
   "name": "동부의원팀 MR 일일활동 관리",
   "short_name": "동부MR",
   "description": "동부의원팀 MR 일일활동 관리 시스템",
+  "id": "/",
   "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
